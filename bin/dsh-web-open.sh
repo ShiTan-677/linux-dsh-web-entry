@@ -1,20 +1,26 @@
 #!/usr/bin/env bash
-# dsh-web-open.sh — one-click entrance to the DeepSeek Harness Web GUI.
+# dsh-web-open.sh — one-click entrance to the DeepSeek Harness Web GUI (Linux).
 #
 #   * server already listening  → open the GUI in a browser app window
-#   * nothing listening         → start `dsh web` in a terminal window, wait for
+#   * systemd unit installed    → start it with `systemctl --user start`, then
+#                                 open the GUI (recovering the process token from
+#                                 journald when the browser has no cookie yet)
+#   * otherwise                 → start `dsh web` in a terminal window, wait for
 #                                 its one-time token URL, then open that URL
-#   * --serve                   → internal: run the server in the foreground
-#   * --status                  → print the HTTP status of the running server
+#   * --serve                   → internal: run the server in the foreground;
+#                                 this is what the systemd unit executes
+#   * --status                  → print 200, 401 or 000 for the configured port
 #
 # The launcher never restarts or stops a server that is already running, so it
 # is safe to use while a DSH session is live.
 #
 # Environment overrides:
-#   DSH_WEB_PORT           listen port (default 3080)
-#   DSH_WEB_BROWSER        browser binary for the app window (default google-chrome)
-#   DSH_WEB_START_TIMEOUT  seconds to wait for the token URL (default 60)
-#   DSH_WEB_DRY_RUN=1      print the planned actions instead of taking them
+#   DSH_WEB_PORT               listen port (default 3080)
+#   DSH_WEB_BROWSER            browser binary for the app window (default google-chrome)
+#   DSH_WEB_START_TIMEOUT      seconds to wait for the server or token (default 60)
+#   DSH_WEB_DRY_RUN=1          print the planned actions instead of taking them
+#   DSH_WEB_SYSTEMD_UNIT       unit name (default dsh-web.service)
+#   DSH_WEB_SYSTEMD_UNIT_FILE  unit path (default $XDG_CONFIG_HOME/systemd/user/<unit>)
 set -uo pipefail
 
 PORT="${DSH_WEB_PORT:-3080}"
@@ -24,6 +30,10 @@ START_TIMEOUT="${DSH_WEB_START_TIMEOUT:-60}"
 DRY_RUN="${DSH_WEB_DRY_RUN:-0}"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dsh-web"
 LAUNCH_LOG="$STATE_DIR/launch.log"
+UNIT_NAME="${DSH_WEB_SYSTEMD_UNIT:-dsh-web.service}"
+UNIT_FILE="${DSH_WEB_SYSTEMD_UNIT_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/$UNIT_NAME}"
+# The token line `dsh web` prints once per process; everything else is noise.
+TOKEN_PATTERN="http://127\.0\.0\.1:${PORT}/\?token=[^[:space:]]+"
 DSH_CMD=()
 
 log() { printf '[dsh-web] %s\n' "$*" >&2; }
@@ -43,7 +53,7 @@ die() {
   exit 1
 }
 
-usage() { sed -n '2,17p' "$0"; }
+usage() { sed -n '2,21p' "$0"; }
 
 # nvm is loaded by ~/.bashrc, which a non-interactive shell returns from early,
 # so a desktop-launched process has to load it explicitly.
@@ -116,6 +126,75 @@ spawn_terminal() {
   fi
 }
 
+# --- systemd mode -----------------------------------------------------------
+
+# The unit file is the user's opt-in; without it the launcher stays terminalless.
+systemd_available() {
+  command -v systemctl >/dev/null 2>&1 && systemctl --user list-units >/dev/null 2>&1
+}
+
+use_systemd() {
+  [ -f "$UNIT_FILE" ] || return 1
+  systemd_available
+}
+
+start_unit() {
+  if [ "$DRY_RUN" = "1" ]; then
+    log "would run: systemctl --user start $UNIT_NAME"
+    return 0
+  fi
+  if ! systemctl --user start "$UNIT_NAME" >/dev/null; then
+    log "systemctl --user start $UNIT_NAME failed"
+    return 1
+  fi
+}
+
+# The unit prints the token to journald; the newest match belongs to the live
+# process, because each process mints exactly one token.
+token_from_journal() {
+  command -v journalctl >/dev/null 2>&1 || return 0
+  journalctl --user -u "$UNIT_NAME" -o cat --no-pager 2>/dev/null |
+    grep -oE "$TOKEN_PATTERN" | tail -n1
+}
+
+# Wait until the port answers, then print its HTTP code.
+wait_for_server() {
+  local deadline=$((SECONDS + START_TIMEOUT)) code
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    code="$(probe)"
+    case "$code" in
+      200 | 401)
+        printf '%s' "$code"
+        return 0
+        ;;
+    esac
+    sleep 0.5
+  done
+  return 1
+}
+
+# A 401 means the server is healthy but this browser has no signed cookie yet;
+# the token URL mints one, so prefer it over the clean URL in that case.
+gui_url_for() {
+  local code="$1" url
+  if [ "$code" = "401" ]; then
+    url="$(token_from_journal)"
+    if [ -n "$url" ]; then printf '%s' "$url"; return 0; fi
+  fi
+  printf '%s' "$URL"
+}
+
+open_served_gui() {
+  local code="$1" url
+  url="$(gui_url_for "$code")"
+  if [ "$code" = "401" ] && [ "$url" = "$URL" ]; then
+    notify "DSH Web" "The server is up but this browser has no valid credential; restart dsh web to mint a fresh URL."
+  fi
+  open_browser "$url"
+}
+
+# --- terminal mode ----------------------------------------------------------
+
 # The launch token is random per server process and only ever printed to the
 # server's console, so read it out of the tee'd log instead of guessing.
 wait_for_token() {
@@ -127,7 +206,7 @@ wait_for_token() {
       log "port $PORT is taken by a process that is not answering as the GUI"
       return 1
     fi
-    url="$(grep -m1 -oE "http://127\.0\.0\.1:${PORT}/\?token=[^[:space:]]+" "$LAUNCH_LOG" 2>/dev/null | head -n1)"
+    url="$(grep -m1 -oE "$TOKEN_PATTERN" "$LAUNCH_LOG" 2>/dev/null | head -n1)"
     if [ -n "$url" ]; then
       open_browser "$url"
       return 0
@@ -167,10 +246,23 @@ main() {
   code="$(probe)"
   if [ "$code" = "200" ] || [ "$code" = "401" ]; then
     log "server on port $PORT is up (HTTP $code); opening the GUI"
-    open_browser "$URL"
-    if [ "$code" = "401" ]; then
-      notify "DSH Web" "The server is up but this browser has no valid credential; restart dsh web in its terminal window to mint a fresh URL."
+    open_served_gui "$code"
+    return 0
+  fi
+
+  if use_systemd; then
+    log "nothing is listening on port $PORT; starting $UNIT_NAME"
+    start_unit || die "systemctl --user start $UNIT_NAME failed; see systemctl --user status $UNIT_NAME"
+    if [ "$DRY_RUN" = "1" ]; then
+      log "dry run: not waiting for the port"
+      return 0
     fi
+    if ! code="$(wait_for_server)"; then
+      notify "DSH Web" "$UNIT_NAME did not listen on port $PORT within ${START_TIMEOUT}s."
+      log "timed out waiting for $UNIT_NAME to listen on port $PORT"
+      return 1
+    fi
+    open_served_gui "$code"
     return 0
   fi
 
