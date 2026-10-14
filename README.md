@@ -115,9 +115,11 @@ claim, and what has **not** been exercised.
 
 ## Roadmap
 
-- A second delivery surface is in progress: a DSH plugin that exposes the same
-  `install.sh` operations as a settings page, an agent tool, and a `/desktop-entry`
-  command, without duplicating install logic.
+- The second delivery surface is published as a separate, independent repository:
+  [`dsh-linux-desktop-entry`](https://github.com/ShiTan-677/dsh-linux-desktop-entry) exposes
+  the same `install.sh` operations as a settings page, an agent tool, and a
+  `/desktop-entry` command. It carries its own copy of this kit rather than depending on it,
+  so either repository can be used, moved, or unpublished without the other.
 - Non-GNOME terminals: `gnome-terminal` is tried first, then `x-terminal-emulator`; other
   emulators need their own invocation.
 - The port is fixed by contract (the browser cookie is bound to `host:port`), so changing

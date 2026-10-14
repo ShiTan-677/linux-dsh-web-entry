@@ -96,7 +96,8 @@ tools/selftest.sh
 
 ## 路线图
 
-- 正在开发第二个交付面：把同一套 `install.sh` 操作暴露为 DSH 插件（设置页 + agent 工具 + `/desktop-entry` 命令），不重复实现安装逻辑。
+- 第二个交付面已作为独立的公开仓库发布：[`dsh-linux-desktop-entry`](https://github.com/ShiTan-677/dsh-linux-desktop-entry)
+  把同一套 `install.sh` 操作暴露为设置页、agent 工具与 `/desktop-entry` 命令。它携带本套件的一份副本而不是依赖本仓库，因此两个仓库中的任何一个都可以独立使用、移动或停止发布。
 - 非 GNOME 终端：先尝试 `gnome-terminal`，再尝试 `x-terminal-emulator`；其他终端需要各自的调用方式。
 - 端口是契约的一部分（浏览器 Cookie 绑定 `host:port`），所以改动 `DSH_WEB_PORT` 后需要用打印出的 token URL 重新登录一次。
 
