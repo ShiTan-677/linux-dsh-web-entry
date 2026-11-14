@@ -63,12 +63,14 @@ Verified for 0.1.1 on this desktop (2026-11-14; DSH `0.2.2-rc.1`, Node v24.21.0)
 | The lock is released on exit | With the children still alive, `flock -n start.lock` succeeds after the launcher exits |
 | A waiting launcher keeps the log | The lock holder keeps `launch.log` with a seeded token line; the second launcher reports the wait and the line survives |
 | The suite stays hermetic with a unit installed | `run_launcher()` pins `DSH_WEB_SYSTEMD_UNIT_FILE` to a nonexistent path, so installing the real unit cannot reroute the dry-run cases into systemd mode |
+| The installer can enable the unit on the real desktop | Install run through the plugin surface printed `dsh-web.service enabled (starts at login)` and `systemctl --user is-enabled dsh-web.service` answers `enabled`; the busy-port guard reported HTTP 401 and did not start the unit |
+| The installed launcher is the patched one | `/home/funnn/.local/bin/dsh-web-open.sh` is byte-identical to `vendor/linux-dsh-web-entry/bin/dsh-web-open.sh` at 0.1.1 and carries the five `9>&-` redirections |
 
 ## Not verified
 
 | Item | Reason | How to check |
 | --- | --- | --- |
-| `systemctl --user enable --now` and login autostart | The validating shell cannot reach the user manager: `systemctl --user list-units` → `Failed to connect to bus: No data available`. systemd mode was therefore exercised through stub binaries plus `systemd-analyze verify`, not against a real user bus | Run `./install.sh --systemd` from a desktop terminal, then `systemctl --user status dsh-web` |
+| `systemctl --user enable --now` and login autostart | `enable` is verified for 0.1.1 (see the addendum); the `--now` start, and therefore login autostart, is still unexercised because the validating server owns port 3080 and the installer deliberately refuses to start the unit into a busy port | Stop the current `dsh web`, then `systemctl --user start dsh-web`; it also starts at the next login |
 | First click with no server running (terminal mode) | A second live `dsh web` would contend for the shared `~/.dsh` profile files, so only the dry-run spawn command and the token parsing were asserted | Stop the running server, then double-click the icon |
 | The GUI window itself | No screenshot path in the validating environment; the window is inferred from the Chrome history row and the valid cookie | Visual check on first use |
 | Non-GNOME terminals, non-Chrome browsers, X11, other distributions | Out of scope for 0.1.0; `gnome-terminal` then `x-terminal-emulator`, and `google-chrome --app` then `xdg-open`, are the paths implemented | — |
