@@ -104,7 +104,7 @@ bind-failure restart loop. It also refuses to enable anything when
 tools/selftest.sh
 ```
 
-41 checks: loopback stub servers answering `200` and `401`, the real `wait_for_token`
+43 checks: loopback stub servers answering `200` and `401`, the real `wait_for_token`
 against the exact `dsh web` console shape, a stub `dsh` verifying the `--serve` argv and
 tee, stub `systemctl`/`journalctl` for systemd mode and its no-user-manager fallback, and a
 sandboxed install/uninstall that also runs `systemd-analyze verify` on the generated unit.

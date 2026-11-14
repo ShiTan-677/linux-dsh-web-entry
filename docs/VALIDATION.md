@@ -1,6 +1,6 @@
 # Validation record
 
-What was verified for 0.1.0 and 0.1.1, how, and what remains unverified. Written from the session that
+What was verified for 0.1.0 through 0.1.2, how, and what remains unverified. Written from the session that
 built and installed the shell surface on 2026-10-14.
 
 ## Environment
@@ -29,7 +29,7 @@ Mechanism facts below were read out of the installed packages, not assumed:
 
 | Claim | Evidence |
 | --- | --- |
-| `tools/selftest.sh` passes | 41/41 checks, exit 0. Covers: `200` and `401` stub servers, the real `wait_for_token` against the exact console shape, the `--serve` argv and `tee` against a stub `dsh`, the systemd start path against stub `systemctl`/`journalctl`, the no-user-manager fallback, sandboxed install/uninstall, and `systemd-analyze verify` on the generated unit |
+| `tools/selftest.sh` passes | 43/43 checks, exit 0. Covers: `200` and `401` stub servers, the real `wait_for_token` against the exact console shape, the `--serve` argv and `tee` against a stub `dsh`, the systemd start path against stub `systemctl`/`journalctl`, the no-user-manager fallback, sandboxed install/uninstall, and `systemd-analyze verify` on the generated unit |
 | The start lock does not outlive the launcher | Regression checks spawn a browser and a terminal while fd 9 is locked and assert neither child inherits a copy of it, and that `flock` on `start.lock` succeeds once the launcher exits |
 | A launcher that loses the lock race leaves the log intact | With the lock held and a pre-seeded `launch.log`, the second launcher reports the wait while the token line survives the run |
 | A running server is opened without being touched | Launcher run against the live server printed `server on port 3080 is up (HTTP 401); opening the GUI` and exited 0 |
@@ -63,8 +63,32 @@ Verified for 0.1.1 on this desktop (2026-11-14; DSH `0.2.2-rc.1`, Node v24.21.0)
 | The lock is released on exit | With the children still alive, `flock -n start.lock` succeeds after the launcher exits |
 | A waiting launcher keeps the log | The lock holder keeps `launch.log` with a seeded token line; the second launcher reports the wait and the line survives |
 | The suite stays hermetic with a unit installed | `run_launcher()` pins `DSH_WEB_SYSTEMD_UNIT_FILE` to a nonexistent path, so installing the real unit cannot reroute the dry-run cases into systemd mode |
+| A custom-directory uninstall leaves the real user manager alone | A stub `systemctl` on `PATH` records every call: uninstalling from a custom `DSH_WEB_SYSTEMD_UNIT_DIR` records none, and the installer says so |
 | The installer can enable the unit on the real desktop | Install run through the plugin surface printed `dsh-web.service enabled (starts at login)` and `systemctl --user is-enabled dsh-web.service` answers `enabled`; the busy-port guard reported HTTP 401 and did not start the unit |
 | The installed launcher is the patched one | `/home/funnn/.local/bin/dsh-web-open.sh` is byte-identical to `vendor/linux-dsh-web-entry/bin/dsh-web-open.sh` at 0.1.1 and carries the five `9>&-` redirections |
+
+### 0.1.2 follow-up — the uninstall guard (same day)
+
+Enabling the unit exposed a second hazard in the same area, this time in the uninstall
+path rather than the launcher. `uninstall_all` calls `remove_systemd_unit` whenever the
+unit file it was pointed at exists, and `remove_systemd_unit` asked the live user manager
+by *name* (`systemctl --user disable --now dsh-web.service`) without mirroring the
+install-side guard for a custom directory.
+
+Reproduced twice on this desktop: with the real unit enabled, running the plugin
+repository's self-test (`node tools/selftest-plugin.mjs`, whose install/uninstall cycle
+redirects the prefix and the unit directory into a temp tree) flipped
+`systemctl --user is-enabled dsh-web.service` from `enabled` to `disabled` while the
+self-test itself still reported 57/57 passed.
+
+Fixed by making `remove_systemd_unit()` remove the custom-directory file without asking
+the manager, and by recording the manager calls with a stub in `tools/selftest.sh`.
+
+| Claim | Evidence |
+| --- | --- |
+| `tools/selftest.sh` passes | 43/43 checks, exit 0 |
+| A custom-directory uninstall does not reach the manager | Stub `systemctl` log stays empty; the skip is reported |
+| Running the shell self-test no longer changes the installed unit | `systemctl --user is-enabled dsh-web.service` still answers `enabled` after the suite |
 
 ## Not verified
 
@@ -80,7 +104,7 @@ Verified for 0.1.1 on this desktop (2026-11-14; DSH `0.2.2-rc.1`, Node v24.21.0)
 ```sh
 git clone https://github.com/ShiTan-677/linux-dsh-web-entry
 cd linux-dsh-web-entry
-tools/selftest.sh          # 41 checks, no side effects on the real desktop
+tools/selftest.sh          # 43 checks, no side effects on the real desktop
 ./install.sh               # then double-click "DSH Web"
 ```
 

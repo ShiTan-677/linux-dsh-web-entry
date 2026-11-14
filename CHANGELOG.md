@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.2 — 2026-11-14 (patch)
+
+- Guard `remove_systemd_unit()` the same way `install_systemd_unit()` is guarded: with a
+  custom `DSH_WEB_SYSTEMD_UNIT_DIR`, uninstall no longer asks the live user manager, so
+  `systemctl --user disable --now` can no longer act on a same-named unit in the standard
+  directory. Found by running the plugin surface's self-test on a desktop where
+  `dsh-web.service` was enabled: every run silently flipped it to `disabled`.
+- `tools/selftest.sh`: 43 checks (was 41). A stub `systemctl` on `PATH` records what a
+  custom-directory uninstall asks the user manager; the answer must be nothing, and the
+  skip is reported to the caller.
+
 ## 0.1.1 — 2026-11-14 (patch)
 
 - Fix the launcher leaking its start lock into long-lived children: the detached browser
