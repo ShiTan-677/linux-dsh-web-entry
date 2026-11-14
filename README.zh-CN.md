@@ -90,7 +90,7 @@ cd linux-dsh-web-entry
 tools/selftest.sh
 ```
 
-共 36 项检查：回环桩服务返回 `200`/`401`、用真实的 `wait_for_token` 解析 `dsh web` 控制台的真实输出形状、桩 `dsh` 验证 `--serve` 的 argv 与 tee、桩 `systemctl`/`journalctl` 覆盖 systemd 模式及其「没有用户管理器」的回退路径，以及在沙箱里安装/卸载并对生成的单元跑 `systemd-analyze verify`。它不会碰你的真实桌面、DSH home 或用户管理器。
+共 41 项检查：回环桩服务返回 `200`/`401`、用真实的 `wait_for_token` 解析 `dsh web` 控制台的真实输出形状、桩 `dsh` 验证 `--serve` 的 argv 与 tee、桩 `systemctl`/`journalctl` 覆盖 systemd 模式及其「没有用户管理器」的回退路径，以及在沙箱里安装/卸载并对生成的单元跑 `systemd-analyze verify`。它不会碰你的真实桌面、DSH home 或用户管理器。
 
 [`docs/VALIDATION.md`](docs/VALIDATION.md) 记录了验证环境、每条结论背后的证据，以及**尚未**实测的部分。
 

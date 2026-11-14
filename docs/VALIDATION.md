@@ -1,6 +1,6 @@
 # Validation record
 
-What was verified for 0.1.0, how, and what remains unverified. Written from the session that
+What was verified for 0.1.0 and 0.1.1, how, and what remains unverified. Written from the session that
 built and installed the shell surface on 2026-10-14.
 
 ## Environment
@@ -29,7 +29,9 @@ Mechanism facts below were read out of the installed packages, not assumed:
 
 | Claim | Evidence |
 | --- | --- |
-| `tools/selftest.sh` passes | 36/36 checks, exit 0. Covers: `200` and `401` stub servers, the real `wait_for_token` against the exact console shape, the `--serve` argv and `tee` against a stub `dsh`, the systemd start path against stub `systemctl`/`journalctl`, the no-user-manager fallback, sandboxed install/uninstall, and `systemd-analyze verify` on the generated unit |
+| `tools/selftest.sh` passes | 41/41 checks, exit 0. Covers: `200` and `401` stub servers, the real `wait_for_token` against the exact console shape, the `--serve` argv and `tee` against a stub `dsh`, the systemd start path against stub `systemctl`/`journalctl`, the no-user-manager fallback, sandboxed install/uninstall, and `systemd-analyze verify` on the generated unit |
+| The start lock does not outlive the launcher | Regression checks spawn a browser and a terminal while fd 9 is locked and assert neither child inherits a copy of it, and that `flock` on `start.lock` succeeds once the launcher exits |
+| A launcher that loses the lock race leaves the log intact | With the lock held and a pre-seeded `launch.log`, the second launcher reports the wait while the token line survives the run |
 | A running server is opened without being touched | Launcher run against the live server printed `server on port 3080 is up (HTTP 401); opening the GUI` and exited 0 |
 | The GUI really opened in Chrome | Chrome history (read-only copy of the profile database) shows `http://127.0.0.1:3080/` with its last visit at `2026-10-14 20:47:23` local — the moment of the launcher run |
 | The clean URL is authenticated in the user's profile | Chrome cookie store (read-only copy, names/metadata only, values not read) holds `dsh-auth-VPhEEcLKeqRDBoBalzN2Nm7CnfxKhLE00pKIDWxt1sw` for host `127.0.0.1`, path `/`, `HttpOnly`, expiring `2026-11-12` (≈30 days). The name was recomputed from the algorithm above and matched |
@@ -38,6 +40,29 @@ Mechanism facts below were read out of the installed packages, not assumed:
 | The unit file is valid | `systemd-analyze verify` accepts the rendered `dsh-web.service` with no output |
 | The plugin surface's contract still holds | `dsh-web-open.sh --status` asserted to print exactly `200` / `401` / `000`; `install.sh` with no arguments and `--uninstall` unchanged |
 | `dsh-web-open.sh` also works from the CLI | `--status` against the live server returned `401` (no cookie from a non-browser client), matching the design |
+
+## 0.1.1 addendum — the leaked start lock (2026-11-14)
+
+The 0.1.0 launcher leaked its `flock` descriptor into the browser it spawned. That only
+shows up on a launch that starts a server (the lock is held across `wait_for_token`, and
+the browser is spawned before the launcher exits). On the real desktop the lock file was
+still held long after every launcher had exited:
+
+- `fuser -v ~/.local/state/dsh-web/start.lock` reported a leftover `chrome` process;
+- a non-blocking `flock` on the file failed with `EWOULDBLOCK`;
+- a second launcher printed `another launcher is already starting the server` and then
+  timed out after 60 s, because the first launcher's shared `launch.log` had already been
+  truncated by the second one before it took (or lost) the lock.
+
+Verified for 0.1.1 on this desktop (2026-11-14; DSH `0.2.2-rc.1`, Node v24.21.0):
+
+| Claim | Evidence |
+| --- | --- |
+| `tools/selftest.sh` passes | 41/41 checks, exit 0 (was 36/36) |
+| Spawned children inherit no lock fd | New checks lock fd 9 in the launcher's context, spawn the stub browser and the stub terminal, and read `/proc/<pid>/fd/9` in each child: `clean` |
+| The lock is released on exit | With the children still alive, `flock -n start.lock` succeeds after the launcher exits |
+| A waiting launcher keeps the log | The lock holder keeps `launch.log` with a seeded token line; the second launcher reports the wait and the line survives |
+| The suite stays hermetic with a unit installed | `run_launcher()` pins `DSH_WEB_SYSTEMD_UNIT_FILE` to a nonexistent path, so installing the real unit cannot reroute the dry-run cases into systemd mode |
 
 ## Not verified
 
@@ -53,7 +78,7 @@ Mechanism facts below were read out of the installed packages, not assumed:
 ```sh
 git clone https://github.com/ShiTan-677/linux-dsh-web-entry
 cd linux-dsh-web-entry
-tools/selftest.sh          # 36 checks, no side effects on the real desktop
+tools/selftest.sh          # 41 checks, no side effects on the real desktop
 ./install.sh               # then double-click "DSH Web"
 ```
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.1 — 2026-11-14 (patch)
+
+- Fix the launcher leaking its start lock into long-lived children: the detached browser
+  inherited the `flock` descriptor (fd 9), so the lock stayed held for the life of the
+  window and later launches waited for a token that could never appear. All spawned
+  children now close fd 9, and `--serve` drops an inherited lock before starting the
+  server.
+- Fix two launchers racing over one log: the shared log is truncated only after the start
+  lock is taken, so a launcher that lost the race can no longer delete the token line the
+  winner is waiting for. The timeout message now names the stale-lock remedy.
+- `tools/selftest.sh`: 41 checks (was 36). The additions cover the descriptor leak for the
+  browser and the terminal, the lock release when the launcher exits, and a waiting
+  launcher leaving the shared log intact. `run_launcher()` pins
+  `DSH_WEB_SYSTEMD_UNIT_FILE`, so the suite stays hermetic once a unit is installed.
+
 ## 0.1.0 — 2026-10-14 (public preview)
 
 - Add a one-click Linux desktop entrance for the DeepSeek Harness Web GUI: an XDG desktop
