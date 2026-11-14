@@ -81,6 +81,7 @@ cd linux-dsh-web-entry
 | `DSH_WEB_PREFIX` | `~/.local` | 安装前缀（安装器） |
 | `DSH_WEB_DESKTOP_DIR` | XDG 桌面目录 | 桌面图标复制到哪（安装器） |
 | `DSH_WEB_SYSTEMD_UNIT_DIR` | XDG 配置目录 | 单元文件写到哪（安装器） |
+| `DSH_WEB_NO_USER_MANAGER` | 未设置 | `1` 让安装器不询问活的用户管理器（供沙箱调用者使用） |
 
 `dsh-web-open.sh` 还接受 `--status`（打印 `200`、`401` 或 `000`）与 `--help`。
 
@@ -90,7 +91,7 @@ cd linux-dsh-web-entry
 tools/selftest.sh
 ```
 
-共 43 项检查：回环桩服务返回 `200`/`401`、用真实的 `wait_for_token` 解析 `dsh web` 控制台的真实输出形状、桩 `dsh` 验证 `--serve` 的 argv 与 tee、桩 `systemctl`/`journalctl` 覆盖 systemd 模式及其「没有用户管理器」的回退路径，以及在沙箱里安装/卸载并对生成的单元跑 `systemd-analyze verify`。它不会碰你的真实桌面、DSH home 或用户管理器。
+共 46 项检查：回环桩服务返回 `200`/`401`、用真实的 `wait_for_token` 解析 `dsh web` 控制台的真实输出形状、桩 `dsh` 验证 `--serve` 的 argv 与 tee、桩 `systemctl`/`journalctl` 覆盖 systemd 模式及其「没有用户管理器」的回退路径，以及在沙箱里安装/卸载并对生成的单元跑 `systemd-analyze verify`。它不会碰你的真实桌面、DSH home 或用户管理器。
 
 [`docs/VALIDATION.md`](docs/VALIDATION.md) 记录了验证环境、每条结论背后的证据，以及**尚未**实测的部分。
 

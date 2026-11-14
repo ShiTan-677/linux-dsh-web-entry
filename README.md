@@ -95,6 +95,7 @@ bind-failure restart loop. It also refuses to enable anything when
 | `DSH_WEB_PREFIX` | `~/.local` | Install prefix (installer) |
 | `DSH_WEB_DESKTOP_DIR` | XDG desktop dir | Where the desktop icon is copied (installer) |
 | `DSH_WEB_SYSTEMD_UNIT_DIR` | XDG config dir | Where the unit file is written (installer) |
+| `DSH_WEB_NO_USER_MANAGER` | unset | `1` keeps the installer from asking the live user manager (for sandboxed callers) |
 
 `dsh-web-open.sh` also accepts `--status` (prints `200`, `401`, or `000`) and `--help`.
 
@@ -104,7 +105,7 @@ bind-failure restart loop. It also refuses to enable anything when
 tools/selftest.sh
 ```
 
-43 checks: loopback stub servers answering `200` and `401`, the real `wait_for_token`
+46 checks: loopback stub servers answering `200` and `401`, the real `wait_for_token`
 against the exact `dsh web` console shape, a stub `dsh` verifying the `--serve` argv and
 tee, stub `systemctl`/`journalctl` for systemd mode and its no-user-manager fallback, and a
 sandboxed install/uninstall that also runs `systemd-analyze verify` on the generated unit.

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.3 — 2026-11-14 (patch)
+
+- 0.1.2's custom-directory guard was not enough. It compared the configured unit
+  directory with the (possibly redirected) default, so a caller that redirects
+  `XDG_CONFIG_HOME` **and** `DSH_WEB_SYSTEMD_UNIT_DIR` into one sandbox — the plugin
+  surface's self-test does exactly that — still reached the live user manager, which
+  resolves the unit by name over D-Bus. Add `DSH_WEB_NO_USER_MANAGER=1`: the installer
+  then reports the unit as installed but never asks the manager. The plugin surface's
+  self-test sets it.
+- `tools/selftest.sh`: 46 checks (was 43). The new checks pin the opt-out with aligned
+  paths and a working stub manager: only the opt-out keeps the manager call count at zero,
+  and the skip is reported.
+
 ## 0.1.2 — 2026-11-14 (patch)
 
 - Guard `remove_systemd_unit()` the same way `install_systemd_unit()` is guarded: with a
